@@ -1,69 +1,55 @@
-// Función que mueve un valor actual hacia un valor destino de a un paso (step)
-function moverSuave (actual: number, destino: number, step: number) {
-    if (Math.abs(destino - actual) <= step) {
+function moverSuave (actual: number, destino: number, paso: number) {
+    if (Math.abs(destino - actual) <= paso) {
         return destino
-    } else if (destino > actual) {
-        return actual + step
-    } else {
-        return actual - step
     }
+    return actual + Math.sign(destino - actual) * paso
 }
-let paso = 0
 let ejeFiltrado = 0
-let promedioEjeY = 0
+let anguloGrúaDeseado = 0
+let promedioY = 0
 let ejeY = 0
 let anguloRotacionDeseado = 0
 let promedioPot = 0
 let valorPot = 0
 let historialEjeY: number[] = []
-// Variables para el filtro de promedio móvil
 let historialPot: number[] = []
-let anguloGrúa = 90
-let anguloRotacion = 90
-// Ángulos actuales que se irán actualizando suavemente
-let anguloGrúaActual = anguloGrúa
-let anguloRotacionActual = anguloRotacion
-// Ajusta para mayor suavizado (más grande = más suave)
-let TAMANO_BUFFER = 5
+let anguloGrúaActual = 90
+let anguloRotacionActual = 90
+let PASO = 5
+let BUFFER = 5
 makerbit.connectLcd(39)
 basic.forever(function () {
-    // --- Leer potenciómetro con suavizado ---
+    // --- Potenciómetro (P2) suavizado ---
     valorPot = pins.analogReadPin(AnalogPin.P2)
     historialPot.push(valorPot)
-    if (historialPot.length > TAMANO_BUFFER) {
+    if (historialPot.length > BUFFER) {
         historialPot.shift()
     }
-    promedioPot = historialPot.reduce((sum, val) => sum + val, 0) / historialPot.length
-    promedioPot = Math.constrain(promedioPot, 0, 1023)
+    let sumaPot = historialPot.reduce((a: number, b: number) => a + b, 0)
+promedioPot = Math.constrain(sumaPot / historialPot.length, 0, 1023)
     anguloRotacionDeseado = Math.map(promedioPot, 0, 1023, 180, 0)
-    anguloRotacionDeseado = Math.constrain(anguloRotacionDeseado, 0, 180)
-    // --- Leer joystick eje Y con suavizado ---
+    // --- Joystick eje Y (P3) suavizado ---
     ejeY = pins.analogReadPin(AnalogPin.P3)
     historialEjeY.push(ejeY)
-    if (historialEjeY.length > TAMANO_BUFFER) {
+    if (historialEjeY.length > BUFFER) {
         historialEjeY.shift()
     }
-    promedioEjeY = historialEjeY.reduce((sum, val) => sum + val, 0) / historialEjeY.length
-    let anguloGrúaDeseado: number
-if (promedioEjeY > 700 && promedioEjeY < 800) {
-        anguloGrúaDeseado = 90
-    } else {
-        ejeFiltrado = Math.constrain(promedioEjeY, 400, 850)
+    let sumaY = historialEjeY.reduce((a: number, b: number) => a + b, 0)
+promedioY = sumaY / historialEjeY.length
+    anguloGrúaDeseado = 90
+    if (promedioY <= 700 || promedioY >= 800) {
+        ejeFiltrado = Math.constrain(promedioY, 400, 850)
         anguloGrúaDeseado = Math.map(ejeFiltrado, 400, 850, 130, 50)
-        anguloGrúaDeseado = Math.constrain(anguloGrúaDeseado, 50, 130)
     }
-    // --- Suavizar movimiento de los servos (cambiar 5 grados por ciclo, más rápido) ---
-    paso = 5
-    anguloRotacionActual = moverSuave(anguloRotacionActual, anguloRotacionDeseado, paso)
-    anguloGrúaActual = moverSuave(anguloGrúaActual, anguloGrúaDeseado, paso)
-    // Enviar posición suavizada a servos
+    // --- Movimiento suave ---
+    anguloRotacionActual = moverSuave(anguloRotacionActual, anguloRotacionDeseado, PASO)
+    anguloGrúaActual = moverSuave(anguloGrúaActual, anguloGrúaDeseado, PASO)
+    // --- Enviar a servos ---
+    // Rotación
     pins.servoWritePin(AnalogPin.P1, anguloRotacionActual)
+    // Brazo
     pins.servoWritePin(AnalogPin.P0, anguloGrúaActual)
-    // Mostrar valores (puedes mostrar los valores actuales o los promedios)
-    makerbit.showStringOnLcd1602("JoyY:", makerbit.position1602(LcdPosition1602.Pos1), 16)
-    makerbit.showStringOnLcd1602("" + (ejeY), makerbit.position1602(LcdPosition1602.Pos6), 16)
-    makerbit.showStringOnLcd1602("Pot:", makerbit.position1602(LcdPosition1602.Pos17), 16)
-    makerbit.showStringOnLcd1602("" + (valorPot), makerbit.position1602(LcdPosition1602.Pos22), 16)
-    // Velocidad del movimiento suavizado
+    // --- Mostrar en LCD ---
+    makerbit.showStringOnLcd1602("JoyY:" + ejeY + " Pot:" + valorPot, makerbit.position1602(LcdPosition1602.Pos1), 32)
     basic.pause(15)
 })
